@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TPN Pool Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --card: #1a1d27;
+  --border: #2a2d3a;
+  --text: #e4e6eb;
+  --muted: #8b8d97;
+  --accent: #4f8ff7;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+  background: var(--bg);
+  color: var(--text);
+  padding: 20px;
+  min-height: 100vh;
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.header h1 { font-size: 1.4rem; font-weight: 600; }
+.header .status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.header .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.card h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.card .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.88rem;
+}
+.card .row .label { color: var(--muted); }
+.card .row .value { font-weight: 500; word-break: break-all; text-align: right; }
+.card .row .value.ok { color: var(--green); }
+.card .row .value.err { color: var(--red); }
+.card .row .value.warn { color: var(--yellow); }
+.card .row .value a { color: var(--accent); text-decoration: none; }
+.card .row .value a:hover { text-decoration: underline; }
+
+/* Login page */
+.login-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+.login-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 40px;
+  width: 360px;
+  text-align: center;
+}
+.login-box h1 { font-size: 1.4rem; margin-bottom: 8px; }
+.login-box p { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+.login-box input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+}
+.login-box input:focus { outline: none; border-color: var(--accent); }
+.login-box .btn { width: 100%; padding: 10px; font-size: 0.95rem; }
+.login-error { color: var(--red); font-size: 0.85rem; margin-bottom: 12px; display: none; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  z-index: 9999;
+  animation: fadeIn 0.3s;
+  display: none;
+}
+.toast.success { background: var(--green); color: #000; }
+.toast.error { background: var(--red); color: #fff; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Pool scores table */
+.table-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.table-wrap h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding: 16px 16px 12px;
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+.score-bar {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.score-bar.high { background: var(--green); }
+.score-bar.low { background: var(--red); }
+.score-bar.mid { background: var(--yellow); color: #000; }
+
+/* Countries */
+.country-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.country-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+.country-tag .cc { font-weight: 600; color: var(--accent); }
+.country-tag .cnt { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- Login Page -->
+<div id="loginPage" style="display:none;">
+  <div class="login-wrap">
+    <div class="login-box">
+      <h1>TPN Pool</h1>
+      <p id="loginPrompt">请输入管理密码</p>
+      <div class="login-error" id="loginError"></div>
+      <input type="password" id="loginPassword" placeholder="密码" autofocus>
+      <button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent);" id="loginBtn" onclick="doLogin()">登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Page -->
+<div id="dashboardPage" style="display:none;">
+
+<div class="header">
+  <h1>TPN Pool Dashboard</h1>
+  <div class="header-actions">
+    <div class="status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">connecting...</span>
+    </div>
+    <button class="btn" onclick="doLogout()">登出</button>
+  </div>
+</div>
+
+<div class="grid">
+  <!-- Node Info -->
+  <div class="card">
+    <h2>Node</h2>
+    <div class="row"><span class="label">version</span><span class="value" id="n-version">-</span></div>
+    <div class="row"><span class="label">mode</span><span class="value" id="n-mode">-</span></div>
+    <div class="row"><span class="label">PID</span><span class="value" id="n-pid">-</span></div>
+    <div class="row"><span class="label">uptime</span><span class="value" id="n-uptime">-</span></div>
+    <div class="row"><span class="label">start time</span><span class="value" id="n-start">-</span></div>
+    <div class="row"><span class="label">git</span><span class="value" id="n-git">-</span></div>
+  </div>
+
+  <!-- Mining Pool -->
+  <div class="card">
+    <h2>Mining Pool</h2>
+    <div class="row">
+      <span class="label">URL</span>
+      <span class="value" id="mp-url">-</span>
+    </div>
+    <div class="row"><span class="label">name</span><span class="value" id="mp-name">-</span></div>
+    <div class="row"><span class="label">website</span><span class="value" id="mp-website">-</span></div>
+  </div>
+
+  <!-- Network -->
+  <div class="card">
+    <h2>Network</h2>
+    <div class="row"><span class="label">public host</span><span class="value" id="net-host">-</span></div>
+    <div class="row"><span class="label">public port</span><span class="value" id="net-port">-</span></div>
+    <div class="row"><span class="label">protocol</span><span class="value" id="net-proto">-</span></div>
+    <div class="row"><span class="label">base URL</span><span class="value" id="net-url">-</span></div>
+    <div class="row"><span class="label">internal subnet</span><span class="value" id="net-intsub">-</span></div>
+    <div class="row"><span class="label">external subnet</span><span class="value" id="net-extsub">-</span></div>
+  </div>
+
+  <!-- Payment -->
+  <div class="card">
+    <h2>Payment</h2>
+    <div class="row"><span class="label">EVM</span><span class="value" id="pay-evm">-</span></div>
+    <div class="row"><span class="label">Bittensor</span><span class="value" id="pay-bt">-</span></div>
+  </div>
+
+  <!-- Workers -->
+  <div class="card">
+    <h2>Workers</h2>
+    <div class="row"><span class="label">total</span><span class="value" id="wk-total">-</span></div>
+    <div class="row"><span class="label">up</span><span class="value ok" id="wk-up">-</span></div>
+    <div class="row"><span class="label">registered pools</span><span class="value" id="wk-pools">-</span></div>
+    <div id="country-tags" class="country-tags"></div>
+  </div>
+
+  <!-- System -->
+  <div class="card">
+    <h2>System</h2>
+    <div class="row"><span class="label">cache keys</span><span class="value" id="sys-cache">-</span></div>
+    <div class="row"><span class="label">database path</span><span class="value" id="sys-db">-</span></div>
+  </div>
+</div>
+
+<!-- Pool Scores (Validator mode) -->
+<div id="scoresSection" style="display:none;">
+  <div class="table-wrap">
+    <h2>Pool Scores (Validator)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Pool UID</th>
+          <th>IP</th>
+          <th>Score</th>
+          <th>Stability</th>
+          <th>Size</th>
+          <th>Performance</th>
+          <th>Geo</th>
+        </tr>
+      </thead>
+      <tbody id="scores-body">
+        <tr><td colspan="7" class="empty">loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end dashboardPage -->
+
+<script>
+// ── Token management ──
+function getToken() { return localStorage.getItem('tpn_pool_token'); }
+function setToken(t) { localStorage.setItem('tpn_pool_token', t); }
+function clearToken() { localStorage.removeItem('tpn_pool_token'); }
+
+// ── Auth-aware fetch ──
+function authFetch(url, opts) {
+  opts = opts || {};
+  opts.headers = opts.headers || {};
+  var token = getToken();
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+  return fetch(url, opts).then(function(r) {
+    if (r.status === 401) { clearToken(); showPage(); }
+    return r;
+  });
+}
+
+// ── Toast ──
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || 'success');
+  t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 3000);
+}
+
+// ── Auth check ──
+var authRequired = true;
+function checkAuth() {
+  fetch('/api/auth/check')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      authRequired = !!d.auth_required;
+      if (!authRequired) setToken('no-auth');
+      showPage();
+    })
+    .catch(function() {
+      authRequired = false;
+      setToken('no-auth');
+      showPage();
+    });
+}
+
+// ── Page switching ──
+function showPage() {
+  var needLogin = authRequired && !getToken();
+  document.getElementById('loginPage').style.display = needLogin ? 'block' : 'none';
+  document.getElementById('dashboardPage').style.display = needLogin ? 'none' : 'block';
+  if (!needLogin) {
+    poll();
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(poll, 5000);
+  }
+}
+
+// ── Login ──
+function doLogin() {
+  var pw = document.getElementById('loginPassword').value;
+  if (!pw) return;
+  document.getElementById('loginBtn').disabled = true;
+  fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    document.getElementById('loginBtn').disabled = false;
+    if (d.success && d.data && d.data.token) {
+      setToken(d.data.token);
+      document.getElementById('loginError').style.display = 'none';
+      showPage();
+    } else {
+      document.getElementById('loginError').textContent = d.message || '登录失败';
+      document.getElementById('loginError').style.display = 'block';
+    }
+  })
+  .catch(function() {
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginError').textContent = '网络错误';
+    document.getElementById('loginError').style.display = 'block';
+  });
+}
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('loginPage').style.display !== 'none') doLogin();
+});
+
+// ── Logout ──
+function doLogout() { clearToken(); checkAuth(); }
+
+// ── Helpers ──
+function text(id, v) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = v || '-';
+}
+function link(id, v, href) {
+  var el = document.getElementById(id);
+  if (el) {
+    if (href) el.innerHTML = '<a href="'+href+'" target="_blank">'+v+'</a>';
+    else el.textContent = v || '-';
+  }
+}
+
+function fmtUptime(s) {
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+  var h = Math.floor(s/3600), m = Math.floor((s%3600)/60);
+  if (s < 86400) return h + 'h ' + m + 'm';
+  var d = Math.floor(s/86400); h = Math.floor((s%86400)/3600);
+  return d + 'd ' + h + 'h';
+}
+
+function fmtTime(t) {
+  if (!t || t === '-') return '-';
+  try { return new Date(t).toLocaleString('zh-CN', {hour12: false}); } catch(e) { return t; }
+}
+
+function truncate(s, n) { return !s ? '-' : (s.length > n ? s.substring(0, n) + '...' : s); }
+
+// ── Dashboard update ──
+function update(data) {
+  var n = data.node;
+  text('n-version', 'v' + n.version);
+  text('n-mode', n.mode);
+  text('n-pid', n.pid);
+  text('n-uptime', fmtUptime(n.uptime_seconds));
+  text('n-start', fmtTime(n.start_time));
+  text('n-git', n.git_branch + ' @ ' + (n.git_hash || '').substring(0,7));
+
+  var mp = data.mining_pool;
+  link('mp-url', truncate(mp.url, 40), mp.url);
+  text('mp-name', mp.name || '-');
+  link('mp-website', truncate(mp.website_url, 40), mp.website_url);
+
+  var net = data.network;
+  text('net-host', net.public_host);
+  text('net-port', net.public_port);
+  text('net-proto', net.protocol);
+  link('net-url', truncate(net.base_url, 40), net.base_url);
+  text('net-intsub', net.internal_subnet);
+  text('net-extsub', net.external_subnet);
+
+  var pay = data.payment;
+  text('pay-evm', truncate(pay.evm_address, 20));
+  text('pay-bt', truncate(pay.bittensor_address, 20));
+
+  var wk = data.workers;
+  text('wk-total', wk.total);
+  text('wk-up', wk.up);
+  text('wk-pools', '-');
+
+  // Country distribution
+  var ct = document.getElementById('country-tags');
+  if (ct) {
+    var countries = wk.by_country || {};
+    var entries = Object.entries(countries).sort(function(a, b) { return b[1] - a[1]; });
+    if (entries.length === 0) {
+      ct.innerHTML = '<span style="color:var(--muted);font-size:0.8rem;">no data</span>';
+    } else {
+      var html = '';
+      for (var i = 0; i < Math.min(entries.length, 20); i++) {
+        html += '<span class="country-tag"><span class="cc">'+entries[i][0]+'</span> <span class="cnt">'+entries[i][1]+'</span></span>';
+      }
+      ct.innerHTML = html;
+    }
+  }
+
+  var sys = data.system;
+  text('sys-cache', data.cache.keys);
+  text('sys-db', data.database.path);
+
+  // Pool scores
+  var scoresSection = document.getElementById('scoresSection');
+  var tbody = document.getElementById('scores-body');
+  if (scoresSection && tbody) {
+    var scores = data.scores.pools || [];
+    if (scores.length === 0) {
+      scoresSection.style.display = 'none';
+    } else {
+      scoresSection.style.display = 'block';
+      var html = '';
+      for (var i = 0; i < scores.length; i++) {
+        var s = scores[i];
+        var scoreNum = parseFloat(s.score) || 0;
+        var cls = 'score-bar';
+        if (scoreNum >= 50) cls += ' high';
+        else if (scoreNum >= 20) cls += ' mid';
+        else cls += ' low';
+        html += '<tr>';
+        html += '<td>' + truncate(s.uid, 16) + '</td>';
+        html += '<td>' + truncate(s.ip, 16) + '</td>';
+        html += '<td><span class="' + cls + '">' + scoreNum.toFixed(1) + '</span></td>';
+        html += '<td>' + (parseFloat(s.stability_score)||0).toFixed(1) + '</td>';
+        html += '<td>' + (parseFloat(s.size_score)||0).toFixed(1) + '</td>';
+        html += '<td>' + (parseFloat(s.performance_score)||0).toFixed(1) + '</td>';
+        html += '<td>' + (parseFloat(s.geo_score)||0).toFixed(1) + '</td>';
+        html += '</tr>';
+      }
+      tbody.innerHTML = html;
+    }
+  }
+
+  $('statusDot').style.background = 'var(--green)';
+  $('statusText').textContent = 'v' + n.version + ' | ' + n.mode + ' | up ' + fmtUptime(n.uptime_seconds);
+}
+
+function poll() {
+  authFetch('/api/dashboard')
+    .then(function(r) { return r.json(); })
+    .then(function(d) { update(d); })
+    .catch(function() {
+      var dot = $('statusDot');
+      if (dot) dot.style.background = 'var(--red)';
+      var txt = $('statusText');
+      if (txt) txt.textContent = 'connection error';
+    });
+}
+
+var pollInterval;
+
+function $(id) { return document.getElementById(id); }
+
+// ── Init ──
+checkAuth();
+</script>
+</body>
+</html>
