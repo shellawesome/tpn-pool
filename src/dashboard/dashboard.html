@@ -59,6 +59,10 @@ body {
   transition: all 0.2s;
 }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.btn-green { border-color: var(--green); color: var(--green); }
+.btn.btn-green:hover { background: var(--green); color: #000; }
+.btn.btn-red { border-color: var(--red); color: var(--red); }
+.btn.btn-red:hover { background: var(--red); color: #fff; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .grid {
   display: grid;
@@ -140,6 +144,25 @@ body {
 .toast.success { background: var(--green); color: #000; }
 .toast.error { background: var(--red); color: #fff; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: none; align-items: center; justify-content: center;
+  z-index: 9998;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  width: 420px;
+  max-width: 90vw;
+}
+.modal h3 { margin-bottom: 16px; font-size: 1.1rem; }
+.modal .modal-body { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; line-height: 1.6; }
+.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* Pool scores table */
 .table-wrap {
@@ -224,6 +247,13 @@ tr:last-child td { border-bottom: none; }
 <body>
 
 <div class="toast" id="toast"></div>
+<div class="modal-overlay" id="upgradeModal">
+  <div class="modal">
+    <h3 id="upgradeTitle">Check For Updates</h3>
+    <div class="modal-body" id="upgradeBody">Checking...</div>
+    <div class="modal-actions" id="upgradeActions"></div>
+  </div>
+</div>
 
 <!-- Login Page -->
 <div id="loginPage" style="display:none;">
@@ -248,6 +278,7 @@ tr:last-child td { border-bottom: none; }
       <div class="dot" id="statusDot"></div>
       <span id="statusText">connecting...</span>
     </div>
+    <button class="btn btn-green" id="updateBtn" onclick="checkUpdate()" style="display:none;">更新</button>
     <button class="btn" id="logoutBtn" onclick="doLogout()" style="display:none;">登出</button>
   </div>
 </div>
@@ -262,6 +293,10 @@ tr:last-child td { border-bottom: none; }
     <div class="row"><span class="label">uptime</span><span class="value" id="n-uptime">-</span></div>
     <div class="row"><span class="label">start time</span><span class="value" id="n-start">-</span></div>
     <div class="row"><span class="label">git</span><span class="value" id="n-git">-</span></div>
+    <div id="consoleControls" style="display:none;gap:6px;margin-top:10px;">
+      <button class="btn btn-green" onclick="doRestart()">重启</button>
+      <button class="btn btn-red" onclick="doStop()">关闭</button>
+    </div>
   </div>
 
   <!-- Mining Pool -->
@@ -460,9 +495,12 @@ function checkAuth() {
 function showPage() {
   var needLogin = authRequired && !getToken();
   var showLogout = PAGE_MODE === 'console' && authRequired && !needLogin;
+  var showConsoleControls = PAGE_MODE === 'console' && !needLogin;
   document.getElementById('loginPage').style.display = needLogin ? 'block' : 'none';
   document.getElementById('dashboardPage').style.display = needLogin ? 'none' : 'block';
   document.getElementById('logoutBtn').style.display = showLogout ? 'inline-block' : 'none';
+  document.getElementById('updateBtn').style.display = showConsoleControls ? 'inline-block' : 'none';
+  document.getElementById('consoleControls').style.display = showConsoleControls ? 'flex' : 'none';
   if (!needLogin) {
     poll();
     if (pollInterval) clearInterval(pollInterval);
@@ -504,6 +542,104 @@ document.addEventListener('keydown', function(e) {
 
 // ── Logout ──
 function doLogout() { clearToken(); checkAuth(); }
+
+function closeModal() {
+  document.getElementById('upgradeModal').classList.remove('show');
+}
+
+function checkUpdate() {
+  var modal = document.getElementById('upgradeModal');
+  var title = document.getElementById('upgradeTitle');
+  var body = document.getElementById('upgradeBody');
+  var actions = document.getElementById('upgradeActions');
+  modal.classList.add('show');
+  title.textContent = 'Check For Updates';
+  body.textContent = 'Checking latest version...';
+  actions.innerHTML = '<button class="btn" onclick="closeModal()">Close</button>';
+
+  authFetch('/api/version')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      var info = d.data;
+      if (!info) {
+        body.textContent = 'Failed to fetch version info';
+        return;
+      }
+      if (info.has_update) {
+        title.textContent = 'Update Available';
+        body.innerHTML = 'Current version: <strong>' + info.current + '</strong><br>' +
+                         'Latest version: <strong>' + info.latest + '</strong><br><br>' +
+                         'Download and restart now?';
+        actions.innerHTML =
+          '<button class="btn btn-green" onclick="doUpgrade()">Update Now</button>' +
+          '<button class="btn" onclick="closeModal()">Cancel</button>';
+      } else {
+        body.innerHTML = 'Current version: <strong>' + info.current + '</strong><br><br>Already up to date.';
+      }
+    })
+    .catch(function() {
+      body.textContent = 'Update check failed';
+    });
+}
+
+function doUpgrade() {
+  var body = document.getElementById('upgradeBody');
+  var actions = document.getElementById('upgradeActions');
+  body.textContent = 'Downloading and installing update. Do not close this page...';
+  actions.innerHTML = '';
+  authFetch('/api/upgrade', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        body.textContent = 'Upgrade successful. Restarting now...';
+        setTimeout(function() { location.reload(); }, 10000);
+      } else {
+        body.textContent = 'Upgrade failed: ' + (d.message || 'unknown error');
+        actions.innerHTML = '<button class="btn" onclick="closeModal()">Close</button>';
+      }
+    })
+    .catch(function() {
+      body.textContent = 'Upgrade request failed';
+      actions.innerHTML = '<button class="btn" onclick="closeModal()">Close</button>';
+    });
+}
+
+function doStop() {
+  if (!confirm('确定要关闭服务吗？')) return;
+  authFetch('/api/stop', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        showToast(d.message || 'stopping...', 'success');
+        document.getElementById('statusDot').style.background = 'var(--red)';
+        document.getElementById('statusText').textContent = 'stopping...';
+      } else {
+        showToast(d.message || 'stop failed', 'error');
+      }
+    })
+    .catch(function() {
+      showToast('stop request failed', 'error');
+    });
+}
+
+function doRestart() {
+  if (!confirm('确定要重启服务吗？')) return;
+  authFetch('/api/restart', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        showToast(d.message || 'restarting...', 'success');
+        document.getElementById('statusDot').style.background = 'var(--yellow)';
+        document.getElementById('statusText').textContent = 'restarting...';
+        setTimeout(function() { location.reload(); }, 10000);
+      } else {
+        showToast(d.message || 'restart failed', 'error');
+      }
+    })
+    .catch(function() {
+      showToast('restart request failed', 'error');
+    });
+}
 
 // ── Helpers ──
 function text(id, v) {

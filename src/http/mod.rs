@@ -36,7 +36,11 @@ pub fn build_router(_config: &AppConfig) -> Router<crate::AppState> {
         .route(
             "/api/console/dashboard",
             get(dashboard::console_dashboard_data_handler),
-        );
+        )
+        .route("/api/version", get(dashboard::get_version))
+        .route("/api/upgrade", post(dashboard::do_upgrade))
+        .route("/api/restart", post(dashboard::restart_pool))
+        .route("/api/stop", post(dashboard::stop_pool));
 
     router
 }
