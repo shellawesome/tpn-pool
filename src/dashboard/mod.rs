@@ -1,5 +1,5 @@
-pub(crate) mod auth;
 mod api;
+pub(crate) mod auth;
 
-pub use api::dashboard_data_handler;
-pub use auth::{auth_check, dashboard_page, login};
+pub use api::{console_dashboard_data_handler, dashboard_data_handler};
+pub use auth::{auth_check, console_page, dashboard_page, login};

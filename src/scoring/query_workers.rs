@@ -29,7 +29,10 @@ pub async fn add_configs_to_workers(
                     workers_with_configs.push(w);
                 }
                 Err(e) => {
-                    debug!("Failed to fetch config for worker {} through pool: {}", worker.ip, e);
+                    debug!(
+                        "Failed to fetch config for worker {} through pool: {}",
+                        worker.ip, e
+                    );
                 }
             }
         } else {
@@ -42,7 +45,10 @@ pub async fn add_configs_to_workers(
                     workers_with_configs.push(w);
                 }
                 Err(e) => {
-                    debug!("Failed to fetch config directly from worker {}: {}", worker.ip, e);
+                    debug!(
+                        "Failed to fetch config directly from worker {}: {}",
+                        worker.ip, e
+                    );
                 }
             }
         }
@@ -71,7 +77,19 @@ async fn fetch_config_through_pool(
         pool_ip, lease_seconds
     );
     let wg_response = client.get(&wg_url).send().await?;
+    let wg_status = wg_response.status();
+    if !wg_status.is_success() {
+        let body = wg_response.text().await.unwrap_or_default();
+        anyhow::bail!(
+            "pool returned HTTP {} for WireGuard lease request: {}",
+            wg_status,
+            body
+        );
+    }
     let wg_config = wg_response.text().await?;
+    if wg_config.trim().is_empty() {
+        anyhow::bail!("pool returned empty WireGuard config");
+    }
 
     // Fetch SOCKS5 config
     let socks5_url = format!(
@@ -80,6 +98,9 @@ async fn fetch_config_through_pool(
     );
     let socks5_config = match client.get(&socks5_url).send().await {
         Ok(resp) => {
+            if !resp.status().is_success() {
+                return Ok((wg_config, None));
+            }
             let body: Value = resp.json().await.unwrap_or(Value::Null);
             if let (Some(user), Some(pass), Some(ip), Some(port)) = (
                 body.get("username").and_then(|v| v.as_str()),
@@ -113,7 +134,19 @@ async fn fetch_config_from_worker(
         worker_ip, public_port, lease_seconds
     );
     let wg_response = client.get(&wg_url).send().await?;
+    let wg_status = wg_response.status();
+    if !wg_status.is_success() {
+        let body = wg_response.text().await.unwrap_or_default();
+        anyhow::bail!(
+            "worker returned HTTP {} for WireGuard lease request: {}",
+            wg_status,
+            body
+        );
+    }
     let wg_config = wg_response.text().await?;
+    if wg_config.trim().is_empty() {
+        anyhow::bail!("worker returned empty WireGuard config");
+    }
 
     // Fetch SOCKS5 config
     let socks5_url = format!(
@@ -122,6 +155,9 @@ async fn fetch_config_from_worker(
     );
     let socks5_config = match client.get(&socks5_url).send().await {
         Ok(resp) => {
+            if !resp.status().is_success() {
+                return Ok((wg_config, None));
+            }
             let body: Value = resp.json().await.unwrap_or(Value::Null);
             if let (Some(user), Some(pass), Some(ip), Some(port)) = (
                 body.get("username").and_then(|v| v.as_str()),

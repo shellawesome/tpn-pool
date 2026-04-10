@@ -19,17 +19,18 @@ pub async fn start_server(
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let app = router
-        .layer(cors)
-        .with_state(state);
+    let app = router.layer(cors).with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     let listener = TcpListener::bind(addr).await?;
     info!("Server running on :{}", port);
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-        .with_graceful_shutdown(crate::system::process::shutdown_signal(shutdown_notify))
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(crate::system::process::shutdown_signal(shutdown_notify))
+    .await?;
 
     Ok(())
 }

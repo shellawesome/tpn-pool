@@ -37,21 +37,6 @@ pub async fn run(command: &str, timeout_ms: Option<u64>) -> Result<RunResult> {
     })
 }
 
-/// Get git branch and commit hash.
-pub async fn get_git_branch_and_hash() -> (String, String) {
-    let branch = run("git rev-parse --abbrev-ref HEAD 2>/dev/null", Some(5000))
-        .await
-        .map(|r| r.stdout.trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    let hash = run("git rev-parse --short HEAD 2>/dev/null", Some(5000))
-        .await
-        .map(|r| r.stdout.trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    (branch, hash)
-}
-
 /// Check system resource warnings.
 pub async fn check_system_warnings() {
     // Check available disk space

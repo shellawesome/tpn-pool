@@ -1,3 +1,4 @@
+use crate::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -8,7 +9,6 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -38,8 +38,7 @@ async fn stats_handler(
     if let Some(ref admin_key) = state.config.admin_api_key {
         let authenticated = params.api_key.as_deref() == Some(admin_key.as_str());
         if authenticated {
-            response["country_code_to_ips"] =
-                state.cache.get_or("country_code_to_ips", json!({}));
+            response["country_code_to_ips"] = state.cache.get_or("country_code_to_ips", json!({}));
         }
     }
 
@@ -146,13 +145,20 @@ async fn worker_performance_handler(
 
             let from_ts = from.unwrap_or(0);
             let to_ts = to.unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
-            let response_json =
-                build_worker_performance_response(records, &metadata_by_ip, from_ts, to_ts, group_by);
+            let response_json = build_worker_performance_response(
+                records,
+                &metadata_by_ip,
+                from_ts,
+                to_ts,
+                group_by,
+            );
 
             if format == "csv" {
                 match json_to_csv(&response_json) {
                     Ok(csv_body) => {
-                        state.cache.set(&cache_key, Value::String(csv_body.clone()), Some(300_000));
+                        state
+                            .cache
+                            .set(&cache_key, Value::String(csv_body.clone()), Some(300_000));
                         (StatusCode::OK, [("content-type", "text/csv")], csv_body).into_response()
                     }
                     Err(e) => (
@@ -162,7 +168,9 @@ async fn worker_performance_handler(
                         .into_response(),
                 }
             } else {
-                state.cache.set(&cache_key, response_json.clone(), Some(300_000));
+                state
+                    .cache
+                    .set(&cache_key, response_json.clone(), Some(300_000));
                 (StatusCode::OK, Json(response_json)).into_response()
             }
         }
@@ -194,10 +202,12 @@ async fn request_status_handler(
             if let Some(url) = upstream.get("url").and_then(|v| v.as_str()) {
                 if let Ok(resp) = reqwest::Client::new().get(url).send().await {
                     if let Ok(upstream_status) = resp.json::<Value>().await {
-                        if upstream_status.get("status").and_then(|v| v.as_str()) == Some("complete")
+                        if upstream_status.get("status").and_then(|v| v.as_str())
+                            == Some("complete")
                         {
                             let parsed = url::Url::parse(url);
-                            let upstream_winner = upstream_status.get("winner").and_then(|v| v.as_str());
+                            let upstream_winner =
+                                upstream_status.get("winner").and_then(|v| v.as_str());
 
                             if let Ok(parsed_url) = parsed {
                                 let my_nonce = parsed_url
@@ -209,12 +219,20 @@ async fn request_status_handler(
                                     || upstream_winner == my_nonce.as_deref();
 
                                 if !pool_won {
-                                    local_value = json!({ "status": "complete", "winner": Value::Null });
-                                    state.cache.set(&request_key, local_value.clone(), Some(60_000));
+                                    local_value =
+                                        json!({ "status": "complete", "winner": Value::Null });
+                                    state.cache.set(
+                                        &request_key,
+                                        local_value.clone(),
+                                        Some(60_000),
+                                    );
                                 }
                             } else if upstream_winner.is_some() {
-                                local_value = json!({ "status": "complete", "winner": Value::Null });
-                                state.cache.set(&request_key, local_value.clone(), Some(60_000));
+                                local_value =
+                                    json!({ "status": "complete", "winner": Value::Null });
+                                state
+                                    .cache
+                                    .set(&request_key, local_value.clone(), Some(60_000));
                             }
                         }
                     }
@@ -223,15 +241,28 @@ async fn request_status_handler(
         }
     }
 
-    Json(if local_value.is_null() { json!({}) } else { local_value })
+    Json(if local_value.is_null() {
+        json!({})
+    } else {
+        local_value
+    })
 }
 
 fn parse_timestamp(value: &str) -> Option<i64> {
     value
         .parse::<i64>()
         .ok()
-        .or_else(|| chrono::DateTime::parse_from_rfc3339(value).ok().map(|dt| dt.timestamp_millis()))
-        .or_else(|| chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").ok().and_then(|d| d.and_hms_opt(0, 0, 0)).map(|dt| dt.and_utc().timestamp_millis()))
+        .or_else(|| {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .ok()
+                .map(|dt| dt.timestamp_millis())
+        })
+        .or_else(|| {
+            chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d")
+                .ok()
+                .and_then(|d| d.and_hms_opt(0, 0, 0))
+                .map(|dt| dt.and_utc().timestamp_millis())
+        })
 }
 
 fn build_worker_performance_response(
@@ -280,10 +311,16 @@ fn build_worker_performance_response(
             map.insert("uptime".to_string(), json!(0.0));
             if let Some(worker) = metadata_by_ip.get(&ip) {
                 if let Some(addr) = &worker.payment_address_evm {
-                    map.insert("payment_address_evm".to_string(), Value::String(addr.clone()));
+                    map.insert(
+                        "payment_address_evm".to_string(),
+                        Value::String(addr.clone()),
+                    );
                 }
                 if let Some(addr) = &worker.payment_address_bittensor {
-                    map.insert("payment_address_bittensor".to_string(), Value::String(addr.clone()));
+                    map.insert(
+                        "payment_address_bittensor".to_string(),
+                        Value::String(addr.clone()),
+                    );
                 }
             }
             map
@@ -296,7 +333,11 @@ fn build_worker_performance_response(
         let unknown = entry.get("unknown").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let cheat = entry.get("cheat").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let total = up + down + unknown + cheat;
-        let uptime = if total > 0.0 { (up / total * 10000.0).round() / 100.0 } else { 0.0 };
+        let uptime = if total > 0.0 {
+            (up / total * 10000.0).round() / 100.0
+        } else {
+            0.0
+        };
         entry.insert("uptime".to_string(), json!(uptime));
     }
 
@@ -318,7 +359,9 @@ fn build_worker_performance_response(
     workers.sort_by(|a, b| {
         let a_uptime = a.get("uptime").and_then(|v| v.as_f64()).unwrap_or(0.0);
         let b_uptime = b.get("uptime").and_then(|v| v.as_f64()).unwrap_or(0.0);
-        b_uptime.partial_cmp(&a_uptime).unwrap_or(std::cmp::Ordering::Equal)
+        b_uptime
+            .partial_cmp(&a_uptime)
+            .unwrap_or(std::cmp::Ordering::Equal)
     });
 
     match group_by {
@@ -340,9 +383,17 @@ fn build_worker_performance_response(
                 .map(|(key, payment_fraction)| json!({ group_by: key, "payment_fraction": payment_fraction }))
                 .collect();
             rows.sort_by(|a, b| {
-                let a_val = a.get("payment_fraction").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                let b_val = b.get("payment_fraction").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                b_val.partial_cmp(&a_val).unwrap_or(std::cmp::Ordering::Equal)
+                let a_val = a
+                    .get("payment_fraction")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let b_val = b
+                    .get("payment_fraction")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                b_val
+                    .partial_cmp(&a_val)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             });
             Value::Array(rows)
         }

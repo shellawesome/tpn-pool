@@ -29,7 +29,8 @@ pub async fn score_node_version(
                 .and_then(|v| v.as_str())
                 .unwrap_or("0.0.0");
 
-            let node_version = semver::Version::parse(version_str).unwrap_or(semver::Version::new(0, 0, 0));
+            let node_version =
+                semver::Version::parse(version_str).unwrap_or(semver::Version::new(0, 0, 0));
             let min_version = semver::Version::parse(MIN_VERSION).unwrap();
             let valid = node_version >= min_version;
 

@@ -3,11 +3,7 @@ use anyhow::Result;
 use chrono::Utc;
 
 /// Write a challenge-solution pair (upsert).
-pub fn write_challenge_solution_pair(
-    pool: &DbPool,
-    challenge: &str,
-    solution: &str,
-) -> Result<()> {
+pub fn write_challenge_solution_pair(pool: &DbPool, challenge: &str, solution: &str) -> Result<()> {
     let conn = pool.get()?;
     let now = Utc::now().timestamp_millis();
     conn.execute(

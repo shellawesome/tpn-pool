@@ -1,3 +1,4 @@
+use crate::AppState;
 use axum::{
     extract::{ConnectInfo, State},
     routing::post,
@@ -6,8 +7,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
-use tracing::info;
-use crate::AppState;
+use tracing::{info, warn};
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/protocol/broadcast/neurons", post(handler))
@@ -61,7 +61,7 @@ async fn handler(
         if trust > 0.0 {
             validators.push(json!({"uid": uid, "ip": ip, "validator_trust": trust}));
         } else {
-            let geodata = state.geo.lookup(ip).await;
+            let geodata = state.geo.lookup(&state.db, ip).await;
             let country_code = if geodata.country_code.is_empty() {
                 "XX".to_string()
             } else {
@@ -86,6 +86,11 @@ async fn handler(
     state
         .cache
         .set_permanent("last_known_validators", Value::Array(validators.clone()));
+    if !validators.is_empty() {
+        if let Err(e) = crate::db::validators_cache::save_validators(&state.db, &validators) {
+            warn!("Failed to persist validators cache to DB: {}", e);
+        }
+    }
     state
         .cache
         .set_permanent("country_count", Value::Object(country_count));

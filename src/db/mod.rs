@@ -1,6 +1,8 @@
 pub mod challenge_response;
 pub mod cleanup;
+pub mod ip_geo_cache;
 pub mod timestamps;
+pub mod validators_cache;
 pub mod workers;
 
 use crate::config::AppConfig;
@@ -18,7 +20,9 @@ pub fn init_pool(config: &AppConfig) -> Result<DbPool> {
 
     // Enable WAL mode and set busy timeout
     let conn = pool.get()?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;")?;
+    conn.execute_batch(
+        "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;",
+    )?;
 
     info!("SQLite database pool initialized at {}", config.db_path);
     Ok(pool)
@@ -66,7 +70,10 @@ pub fn init_schema(pool: &DbPool, config: &AppConfig) -> Result<()> {
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_workers_single_up_ip
             ON workers (ip) WHERE status = 'up';",
     ) {
-        tracing::warn!("Could not create one-up-per-ip index: {}, attempting dedup", e);
+        tracing::warn!(
+            "Could not create one-up-per-ip index: {}, attempting dedup",
+            e
+        );
         conn.execute_batch(
             "DELETE FROM workers WHERE rowid NOT IN (
                 SELECT MIN(rowid) FROM workers WHERE status = 'up' GROUP BY ip
@@ -101,6 +108,27 @@ pub fn init_schema(pool: &DbPool, config: &AppConfig) -> Result<()> {
     )?;
     info!("Challenge solution table initialized");
 
+    // IP geo cache table (preferred country source from ip.im)
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS ip_geo_cache (
+            ip TEXT NOT NULL PRIMARY KEY,
+            country_code TEXT NOT NULL,
+            hostname TEXT,
+            city TEXT,
+            region TEXT,
+            loc TEXT,
+            org TEXT,
+            postal TEXT,
+            timezone TEXT,
+            asn TEXT,
+            raw_response TEXT,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_ip_geo_cache_updated_at
+            ON ip_geo_cache (updated_at);",
+    )?;
+    info!("IP geo cache table initialized");
+
     // TIMESTAMPS table
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS timestamps (
@@ -110,6 +138,9 @@ pub fn init_schema(pool: &DbPool, config: &AppConfig) -> Result<()> {
         );",
     )?;
     info!("Timestamps table initialized");
+
+    validators_cache::init_schema(pool)?;
+    info!("Validators cache table initialized");
 
     info!("Database schema initialization complete");
     Ok(())

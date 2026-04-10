@@ -2,19 +2,8 @@ use crate::cache::TtlCache;
 use serde_json::Value;
 use std::sync::Arc;
 
-/// Hardcoded fallback validator IPs (from the Node.js source).
-pub static VALIDATOR_FALLBACK_IPS: &[&str] = &[
-    "194.163.159.178",
-    "38.45.65.80",
-    "209.145.55.229",
-    "51.159.4.162",
-    "209.145.50.59",
-    "165.227.133.192",
-];
-
 /// Check if a request IP is from a known validator.
 pub fn is_validator_request(ip: &str, cache: &Arc<TtlCache>) -> Option<(String, String)> {
-    // Check the cached validator list
     let validators = cache.get_or("last_known_validators", Value::Array(vec![]));
 
     if let Value::Array(ref arr) = validators {
@@ -32,35 +21,24 @@ pub fn is_validator_request(ip: &str, cache: &Arc<TtlCache>) -> Option<(String, 
         }
     }
 
-    // Check fallback IPs
-    if VALIDATOR_FALLBACK_IPS.contains(&ip) {
-        return Some(("fallback".to_string(), ip.to_string()));
-    }
-
     None
 }
 
-/// Get list of known validators from cache or fallback.
+/// Get the known validators. Returns an empty list until the Python shim has
+/// broadcast a neuron list (or a persisted list has been restored from the DB).
 pub fn get_validators(cache: &Arc<TtlCache>) -> Vec<(String, String)> {
     let validators = cache.get_or("last_known_validators", Value::Array(vec![]));
 
-    if let Value::Array(ref arr) = validators {
-        if !arr.is_empty() {
-            return arr
-                .iter()
-                .filter_map(|v| {
-                    let uid = v.get("uid")?.as_str()?.to_string();
-                    let ip = v.get("ip")?.as_str()?.to_string();
-                    Some((uid, ip))
-                })
-                .collect();
-        }
+    if let Value::Array(arr) = validators {
+        return arr
+            .iter()
+            .filter_map(|v| {
+                let uid = v.get("uid")?.as_str()?.to_string();
+                let ip = v.get("ip")?.as_str()?.to_string();
+                Some((uid, ip))
+            })
+            .collect();
     }
 
-    // Fallback
-    VALIDATOR_FALLBACK_IPS
-        .iter()
-        .enumerate()
-        .map(|(i, ip)| (format!("fallback_{}", i), ip.to_string()))
-        .collect()
+    Vec::new()
 }

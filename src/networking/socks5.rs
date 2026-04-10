@@ -1,6 +1,6 @@
 use crate::system::shell::run;
 
-/// Test a SOCKS5 proxy connection.
+/// Test a SOCKS5 proxy connection with retry logic matching the original implementation.
 pub async fn test_socks5_connection(
     sock: &str,
     claimed_worker_ip: Option<&str>,
@@ -13,7 +13,7 @@ pub async fn test_socks5_connection(
     };
 
     let cmd = format!(
-        "curl -s --max-time 15 --proxy '{}' https://ipv4.icanhazip.com 2>/dev/null",
+        "curl -S --max-time 2 --retry 3 --retry-max-time 6 --retry-delay 1 --retry-connrefused --retry-all-errors --proxy '{}' https://ipv4.icanhazip.com",
         proxy_url
     );
 
@@ -42,15 +42,27 @@ pub async fn test_socks5_connection(
                 failure_code: None,
             }
         }
-        Ok(r) => Socks5TestResult {
-            valid: false,
-            message: format!("SOCKS5 test failed: {}", r.stderr.trim()),
-            failure_code: Some("connection_failed".to_string()),
-        },
+        Ok(r) => {
+            let stderr = r.stderr.trim();
+            let stdout = r.stdout.trim();
+            let detail = if !stderr.is_empty() {
+                stderr.to_string()
+            } else if !stdout.is_empty() {
+                format!("stdout={}", stdout)
+            } else {
+                "no output".to_string()
+            };
+
+            Socks5TestResult {
+                valid: false,
+                message: format!("SOCKS5 test failed: {}", detail),
+                failure_code: Some("socks5_connectivity_failure".to_string()),
+            }
+        }
         Err(e) => Socks5TestResult {
             valid: false,
             message: format!("SOCKS5 test error: {}", e),
-            failure_code: Some("test_error".to_string()),
+            failure_code: Some("socks5_connectivity_failure".to_string()),
         },
     }
 }

@@ -187,6 +187,38 @@ tr:last-child td { border-bottom: none; }
 }
 .country-tag .cc { font-weight: 600; color: var(--accent); }
 .country-tag .cnt { color: var(--muted); }
+.sparkline {
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  min-height: 68px;
+  margin-top: 8px;
+}
+.sparkbar {
+  flex: 1;
+  min-width: 10px;
+  background: linear-gradient(180deg, var(--accent), #2f5fb0);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+}
+.sparkbar.low { background: linear-gradient(180deg, var(--red), #991b1b); }
+.sparkbar.mid { background: linear-gradient(180deg, var(--yellow), #a16207); }
+.sparkbar.high { background: linear-gradient(180deg, var(--green), #166534); }
+.sparkbar::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.spark-empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding-top: 6px;
+}
 </style>
 </head>
 <body>
@@ -198,10 +230,10 @@ tr:last-child td { border-bottom: none; }
   <div class="login-wrap">
     <div class="login-box">
       <h1>TPN Pool</h1>
-      <p id="loginPrompt">请输入管理密码</p>
+      <p id="loginPrompt">Enter the admin password</p>
       <div class="login-error" id="loginError"></div>
-      <input type="password" id="loginPassword" placeholder="密码" autofocus>
-      <button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent);" id="loginBtn" onclick="doLogin()">登录</button>
+      <input type="password" id="loginPassword" placeholder="Password" autofocus>
+      <button class="btn" style="background:var(--accent);color:#fff;border-color:var(--accent);" id="loginBtn" onclick="doLogin()">Login</button>
     </div>
   </div>
 </div>
@@ -216,7 +248,7 @@ tr:last-child td { border-bottom: none; }
       <div class="dot" id="statusDot"></div>
       <span id="statusText">connecting...</span>
     </div>
-    <button class="btn" onclick="doLogout()">登出</button>
+    <button class="btn" id="logoutBtn" onclick="doLogout()" style="display:none;">登出</button>
   </div>
 </div>
 
@@ -250,8 +282,29 @@ tr:last-child td { border-bottom: none; }
     <div class="row"><span class="label">public port</span><span class="value" id="net-port">-</span></div>
     <div class="row"><span class="label">protocol</span><span class="value" id="net-proto">-</span></div>
     <div class="row"><span class="label">base URL</span><span class="value" id="net-url">-</span></div>
+    <div class="row"><span class="label">external IP</span><span class="value" id="net-extip">-</span></div>
     <div class="row"><span class="label">internal subnet</span><span class="value" id="net-intsub">-</span></div>
     <div class="row"><span class="label">external subnet</span><span class="value" id="net-extsub">-</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Chain</h2>
+    <div class="row"><span class="label">network</span><span class="value" id="chain-network">-</span></div>
+    <div class="row"><span class="label">endpoint</span><span class="value" id="chain-endpoint">-</span></div>
+    <div class="row"><span class="label">netuid</span><span class="value" id="chain-netuid">-</span></div>
+    <div class="row"><span class="label">axon port</span><span class="value" id="chain-axon-port">-</span></div>
+    <div class="row"><span class="label">registered</span><span class="value" id="chain-registered">-</span></div>
+    <div class="row"><span class="label">uid</span><span class="value" id="chain-uid">-</span></div>
+    <div class="row"><span class="label">checked</span><span class="value" id="chain-checked">-</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Wallet</h2>
+    <div class="row"><span class="label">wallet</span><span class="value" id="wallet-name">-</span></div>
+    <div class="row"><span class="label">hotkey</span><span class="value" id="wallet-hotkey-name">-</span></div>
+    <div class="row"><span class="label">hotkey ss58</span><span class="value" id="wallet-hotkey-ss58">-</span></div>
+    <div class="row"><span class="label">coldkey ss58</span><span class="value" id="wallet-coldkey-ss58">-</span></div>
+    <div class="row"><span class="label">wallet dir</span><span class="value" id="wallet-dir">-</span></div>
   </div>
 
   <!-- Payment -->
@@ -267,7 +320,34 @@ tr:last-child td { border-bottom: none; }
     <div class="row"><span class="label">total</span><span class="value" id="wk-total">-</span></div>
     <div class="row"><span class="label">up</span><span class="value ok" id="wk-up">-</span></div>
     <div class="row"><span class="label">registered pools</span><span class="value" id="wk-pools">-</span></div>
+    <div class="row"><span class="label">last update</span><span class="value" id="wk-updated">-</span></div>
+    <div class="row"><span class="label">status mix</span><span class="value" id="wk-status">-</span></div>
+    <div class="row"><span class="label">transport mix</span><span class="value" id="wk-conn">-</span></div>
     <div id="country-tags" class="country-tags"></div>
+  </div>
+
+  <div class="card">
+    <h2>Validators</h2>
+    <div class="row"><span class="label">known</span><span class="value" id="val-known">-</span></div>
+    <div class="row"><span class="label">source</span><span class="value" id="val-source">-</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Requests</h2>
+    <div class="row"><span class="label">tracked</span><span class="value" id="req-tracked">-</span></div>
+    <div class="row"><span class="label">complete</span><span class="value" id="req-complete">-</span></div>
+    <div class="row"><span class="label">upstream watch</span><span class="value" id="req-upstream">-</span></div>
+    <div class="row"><span class="label">status mix</span><span class="value" id="req-status">-</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Performance 24h</h2>
+    <div class="row"><span class="label">samples</span><span class="value" id="perf-samples">-</span></div>
+    <div class="row"><span class="label">unique workers</span><span class="value" id="perf-workers">-</span></div>
+    <div class="row"><span class="label">up samples</span><span class="value" id="perf-up">-</span></div>
+    <div class="row"><span class="label">up ratio</span><span class="value" id="perf-ratio">-</span></div>
+    <div class="row"><span class="label">last sample</span><span class="value" id="perf-last">-</span></div>
+    <div id="perf-trend" class="sparkline"></div>
   </div>
 
   <!-- System -->
@@ -287,6 +367,7 @@ tr:last-child td { border-bottom: none; }
         <tr>
           <th>Pool UID</th>
           <th>IP</th>
+          <th>Received</th>
           <th>Score</th>
           <th>Stability</th>
           <th>Size</th>
@@ -295,15 +376,37 @@ tr:last-child td { border-bottom: none; }
         </tr>
       </thead>
       <tbody id="scores-body">
-        <tr><td colspan="7" class="empty">loading...</td></tr>
+        <tr><td colspan="8" class="empty">loading...</td></tr>
       </tbody>
     </table>
   </div>
 </div>
 
+<div class="table-wrap">
+  <h2>Recent Workers</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>IP</th>
+        <th>Country</th>
+        <th>Status</th>
+        <th>Transport</th>
+        <th>Pool UID</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody id="workers-body">
+      <tr><td colspan="6" class="empty">loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
 </div><!-- end dashboardPage -->
 
 <script>
+var PAGE_MODE = "__TPN_MODE__";
+var DASHBOARD_API_PATH = "__TPN_API_PATH__";
+
 // ── Token management ──
 function getToken() { return localStorage.getItem('tpn_pool_token'); }
 function setToken(t) { localStorage.setItem('tpn_pool_token', t); }
@@ -333,6 +436,12 @@ function showToast(msg, type) {
 // ── Auth check ──
 var authRequired = true;
 function checkAuth() {
+  if (PAGE_MODE !== 'console') {
+    authRequired = false;
+    clearToken();
+    showPage();
+    return;
+  }
   fetch('/api/auth/check')
     .then(function(r) { return r.json(); })
     .then(function(d) {
@@ -350,8 +459,10 @@ function checkAuth() {
 // ── Page switching ──
 function showPage() {
   var needLogin = authRequired && !getToken();
+  var showLogout = PAGE_MODE === 'console' && authRequired && !needLogin;
   document.getElementById('loginPage').style.display = needLogin ? 'block' : 'none';
   document.getElementById('dashboardPage').style.display = needLogin ? 'none' : 'block';
+  document.getElementById('logoutBtn').style.display = showLogout ? 'inline-block' : 'none';
   if (!needLogin) {
     poll();
     if (pollInterval) clearInterval(pollInterval);
@@ -422,6 +533,35 @@ function fmtTime(t) {
 }
 
 function truncate(s, n) { return !s ? '-' : (s.length > n ? s.substring(0, n) + '...' : s); }
+function summarizeMap(obj) {
+  obj = obj || {};
+  var entries = Object.entries(obj);
+  if (entries.length === 0) return '-';
+  entries.sort(function(a, b) { return b[1] - a[1]; });
+  return entries.map(function(entry) { return entry[0] + ':' + entry[1]; }).join(', ');
+}
+function renderTrend(id, hourly) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  hourly = hourly || [];
+  if (!hourly.length) {
+    el.innerHTML = '<div class="spark-empty">no recent samples</div>';
+    return;
+  }
+  var recent = hourly.slice(-12);
+  var html = '';
+  for (var i = 0; i < recent.length; i++) {
+    var item = recent[i];
+    var ratio = item.up_ratio == null ? 0 : item.up_ratio;
+    var cls = 'sparkbar low';
+    if (ratio >= 0.8) cls = 'sparkbar high';
+    else if (ratio >= 0.5) cls = 'sparkbar mid';
+    var label = item.bucket ? item.bucket.slice(-5, -3) : '';
+    var height = Math.max(8, Math.round(ratio * 56));
+    html += '<div class="' + cls + '" style="height:' + height + 'px" data-label="' + label + '" title="' + item.bucket + ' up ' + Math.round(ratio * 100) + '% (' + item.up_samples + '/' + item.samples + ')"></div>';
+  }
+  el.innerHTML = html;
+}
 
 // ── Dashboard update ──
 function update(data) {
@@ -443,8 +583,25 @@ function update(data) {
   text('net-port', net.public_port);
   text('net-proto', net.protocol);
   link('net-url', truncate(net.base_url, 40), net.base_url);
+  text('net-extip', net.external_ip);
   text('net-intsub', net.internal_subnet);
   text('net-extsub', net.external_subnet);
+
+  var chain = data.chain || {};
+  text('chain-network', chain.network);
+  text('chain-endpoint', truncate(chain.endpoint, 40));
+  text('chain-netuid', chain.netuid);
+  text('chain-axon-port', chain.axon_port);
+  text('chain-registered', chain.registered ? 'yes' : (chain.status_error ? 'error' : 'no'));
+  text('chain-uid', chain.uid);
+  text('chain-checked', fmtTime(chain.status_checked_at));
+
+  var wallet = data.wallet || {};
+  text('wallet-name', wallet.wallet_name);
+  text('wallet-hotkey-name', wallet.hotkey_name);
+  text('wallet-hotkey-ss58', truncate(wallet.hotkey_ss58, 20));
+  text('wallet-coldkey-ss58', truncate(wallet.coldkey_ss58, 20));
+  text('wallet-dir', truncate(wallet.wallet_dir, 32));
 
   var pay = data.payment;
   text('pay-evm', truncate(pay.evm_address, 20));
@@ -453,7 +610,28 @@ function update(data) {
   var wk = data.workers;
   text('wk-total', wk.total);
   text('wk-up', wk.up);
-  text('wk-pools', '-');
+  text('wk-pools', wk.registered_pools);
+  text('wk-updated', fmtTime(wk.last_updated_at));
+  text('wk-status', summarizeMap(wk.by_status));
+  text('wk-conn', summarizeMap(wk.by_connection_type));
+
+  var validators = data.validators || {};
+  text('val-known', validators.known);
+  text('val-source', (validators.known || 0) > 0 ? 'broadcast/cache' : 'waiting');
+
+  var requests = data.requests || {};
+  text('req-tracked', requests.tracked);
+  text('req-complete', requests.complete);
+  text('req-upstream', requests.upstream_watch);
+  text('req-status', summarizeMap(requests.by_status));
+
+  var perf = data.performance || {};
+  text('perf-samples', perf.samples);
+  text('perf-workers', perf.unique_workers);
+  text('perf-up', perf.up_samples);
+  text('perf-ratio', perf.up_ratio == null ? '-' : (perf.up_ratio * 100).toFixed(1) + '%');
+  text('perf-last', fmtTime(perf.last_sample_at));
+  renderTrend('perf-trend', perf.hourly);
 
   // Country distribution
   var ct = document.getElementById('country-tags');
@@ -479,7 +657,7 @@ function update(data) {
   var scoresSection = document.getElementById('scoresSection');
   var tbody = document.getElementById('scores-body');
   if (scoresSection && tbody) {
-    var scores = data.scores.pools || [];
+    var scores = (data.scores && data.scores.pools) ? data.scores.pools : [];
     if (scores.length === 0) {
       scoresSection.style.display = 'none';
     } else {
@@ -495,6 +673,7 @@ function update(data) {
         html += '<tr>';
         html += '<td>' + truncate(s.uid, 16) + '</td>';
         html += '<td>' + truncate(s.ip, 16) + '</td>';
+        html += '<td>' + fmtTime(s.received_at) + '</td>';
         html += '<td><span class="' + cls + '">' + scoreNum.toFixed(1) + '</span></td>';
         html += '<td>' + (parseFloat(s.stability_score)||0).toFixed(1) + '</td>';
         html += '<td>' + (parseFloat(s.size_score)||0).toFixed(1) + '</td>';
@@ -506,12 +685,34 @@ function update(data) {
     }
   }
 
+  var workersBody = document.getElementById('workers-body');
+  if (workersBody) {
+    var recentWorkers = (wk && wk.recent) ? wk.recent : [];
+    if (!recentWorkers.length) {
+      workersBody.innerHTML = '<tr><td colspan="6" class="empty">no workers</td></tr>';
+    } else {
+      var rows = '';
+      for (var j = 0; j < recentWorkers.length; j++) {
+        var worker = recentWorkers[j];
+        rows += '<tr>';
+        rows += '<td>' + truncate(worker.ip, 16) + '</td>';
+        rows += '<td>' + (worker.country_code || '-') + '</td>';
+        rows += '<td>' + (worker.status || '-') + '</td>';
+        rows += '<td>' + (worker.connection_type || '-') + '</td>';
+        rows += '<td>' + truncate(worker.mining_pool_uid, 16) + '</td>';
+        rows += '<td>' + fmtTime(worker.updated_at) + '</td>';
+        rows += '</tr>';
+      }
+      workersBody.innerHTML = rows;
+    }
+  }
+
   $('statusDot').style.background = 'var(--green)';
   $('statusText').textContent = 'v' + n.version + ' | ' + n.mode + ' | up ' + fmtUptime(n.uptime_seconds);
 }
 
 function poll() {
-  authFetch('/api/dashboard')
+  authFetch(DASHBOARD_API_PATH)
     .then(function(r) { return r.json(); })
     .then(function(d) { update(d); })
     .catch(function() {

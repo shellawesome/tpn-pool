@@ -108,7 +108,9 @@ pub async fn login(
     match generate_token(&state.config.jwt_secret) {
         Ok(token) => (
             StatusCode::OK,
-            Json(serde_json::json!({ "success": true, "message": "登录成功", "data": { "token": token } })),
+            Json(
+                serde_json::json!({ "success": true, "message": "登录成功", "data": { "token": token } }),
+            ),
         ),
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -124,7 +126,19 @@ pub async fn auth_check(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// GET /dashboard — Embedded HTML dashboard page.
-pub async fn dashboard_page() -> Html<&'static str> {
+pub async fn dashboard_page() -> Html<String> {
     info!("GET /dashboard requested — serving embedded HTML");
-    Html(include_str!("dashboard.html"))
+    Html(render_dashboard_html("dashboard", "/api/dashboard"))
+}
+
+/// GET /console — Embedded HTML console page.
+pub async fn console_page() -> Html<String> {
+    info!("GET /console requested — serving embedded HTML");
+    Html(render_dashboard_html("console", "/api/console/dashboard"))
+}
+
+fn render_dashboard_html(mode: &str, api_path: &str) -> String {
+    include_str!("dashboard.html")
+        .replace("__TPN_MODE__", mode)
+        .replace("__TPN_API_PATH__", api_path)
 }

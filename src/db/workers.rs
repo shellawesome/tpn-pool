@@ -64,6 +64,7 @@ fn default_connection_type() -> String {
 pub struct GetWorkersParams {
     pub mining_pool_uid: Option<String>,
     pub status: Option<String>,
+    pub worker_ip: Option<String>,
     pub country_code: Option<String>,
     pub connection_type: Option<String>,
     pub whitelist: Option<Vec<String>>,
@@ -74,7 +75,12 @@ pub struct GetWorkersParams {
 
 /// Write (upsert) workers into the database.
 /// Uses BEGIN IMMEDIATE to serialize writes (replacing pg_advisory_xact_lock).
-pub fn write_workers(pool: &DbPool, workers: &[Worker], mining_pool_uid: &str, _mining_pool_ip: &str) -> Result<()> {
+pub fn write_workers(
+    pool: &DbPool,
+    workers: &[Worker],
+    mining_pool_uid: &str,
+    _mining_pool_ip: &str,
+) -> Result<()> {
     if workers.is_empty() {
         return Ok(());
     }
@@ -163,6 +169,12 @@ pub fn get_workers(pool: &DbPool, params: &GetWorkersParams) -> Result<Vec<Worke
     if let Some(ref status) = params.status {
         sql.push_str(&format!(" AND status = ?{}", param_idx));
         bind_values.push(Box::new(status.clone()));
+        param_idx += 1;
+    }
+
+    if let Some(ref worker_ip) = params.worker_ip {
+        sql.push_str(&format!(" AND ip = ?{}", param_idx));
+        bind_values.push(Box::new(worker_ip.clone()));
         param_idx += 1;
     }
 
@@ -255,7 +267,11 @@ pub fn get_workers(pool: &DbPool, params: &GetWorkersParams) -> Result<Vec<Worke
 }
 
 /// Find workers with clashing IPs across pools.
-pub fn find_clashing_workers(pool: &DbPool, workers: &[Worker], mining_pool_uid: &str) -> Result<Vec<Worker>> {
+pub fn find_clashing_workers(
+    pool: &DbPool,
+    workers: &[Worker],
+    mining_pool_uid: &str,
+) -> Result<Vec<Worker>> {
     if workers.is_empty() {
         return Ok(vec![]);
     }
@@ -329,9 +345,8 @@ pub fn get_worker_performance(
     to: Option<i64>,
 ) -> Result<Vec<(String, String, String, i64)>> {
     let conn = pool.get()?;
-    let mut sql = String::from(
-        "SELECT ip, status, public_url, updated_at FROM worker_performance WHERE 1=1",
-    );
+    let mut sql =
+        String::from("SELECT ip, status, public_url, updated_at FROM worker_performance WHERE 1=1");
     let mut bind_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
     let mut param_idx = 1;
 
@@ -368,9 +383,7 @@ pub fn get_worker_countries_for_pool(
     connection_type: Option<&str>,
 ) -> Result<Vec<String>> {
     let conn = pool.get()?;
-    let mut sql = String::from(
-        "SELECT DISTINCT country_code FROM workers WHERE status = 'up'",
-    );
+    let mut sql = String::from("SELECT DISTINCT country_code FROM workers WHERE status = 'up'");
     let mut bind_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
     let mut param_idx = 1;
 

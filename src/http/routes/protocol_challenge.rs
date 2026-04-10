@@ -1,3 +1,4 @@
+use crate::AppState;
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
     routing::{get, post},
@@ -5,7 +6,6 @@ use axum::{
 };
 use serde_json::{json, Value};
 use std::net::SocketAddr;
-use crate::AppState;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -45,10 +45,7 @@ async fn new_challenge(
     }))
 }
 
-async fn get_solution(
-    State(state): State<AppState>,
-    Path(challenge): Path<String>,
-) -> Json<Value> {
+async fn get_solution(State(state): State<AppState>, Path(challenge): Path<String>) -> Json<Value> {
     match crate::db::challenge_response::read_challenge_solution(&state.db, &challenge) {
         Ok(Some(solution)) => Json(json!({"challenge": challenge, "solution": solution})),
         Ok(None) => Json(json!({"error": "Challenge not found"})),
@@ -61,9 +58,7 @@ async fn submit_solution(
     Path((challenge, solution)): Path<(String, String)>,
 ) -> Json<Value> {
     match crate::db::challenge_response::write_challenge_solution_pair(
-        &state.db,
-        &challenge,
-        &solution,
+        &state.db, &challenge, &solution,
     ) {
         Ok(()) => Json(json!({"success": true})),
         Err(e) => Json(json!({"error": e.to_string()})),
@@ -83,9 +78,7 @@ async fn store_challenge(
 ) -> Json<Value> {
     if let (Some(challenge), Some(solution)) = (payload.challenge, payload.solution) {
         match crate::db::challenge_response::write_challenge_solution_pair(
-            &state.db,
-            &challenge,
-            &solution,
+            &state.db, &challenge, &solution,
         ) {
             Ok(()) => Json(json!({"success": true})),
             Err(e) => Json(json!({"error": e.to_string()})),

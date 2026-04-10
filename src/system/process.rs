@@ -6,7 +6,9 @@ use tracing::info;
 /// Create a shutdown signal that listens for SIGTERM and SIGINT.
 pub async fn shutdown_signal(notify: Arc<Notify>) {
     let ctrl_c = async {
-        signal::ctrl_c().await.expect("Failed to install CTRL+C handler");
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C handler");
     };
 
     #[cfg(unix)]

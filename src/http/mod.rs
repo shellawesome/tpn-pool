@@ -29,9 +29,14 @@ pub fn build_router(_config: &AppConfig) -> Router<crate::AppState> {
     // Dashboard
     router = router
         .route("/dashboard", get(dashboard::dashboard_page))
+        .route("/console", get(dashboard::console_page))
         .route("/api/login", post(dashboard::login))
         .route("/api/auth/check", get(dashboard::auth_check))
-        .route("/api/dashboard", get(dashboard::dashboard_data_handler));
+        .route("/api/dashboard", get(dashboard::dashboard_data_handler))
+        .route(
+            "/api/console/dashboard",
+            get(dashboard::console_dashboard_data_handler),
+        );
 
     router
 }
